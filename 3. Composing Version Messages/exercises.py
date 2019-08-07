@@ -11,6 +11,15 @@ dummy_address = {
     "port": 8333
 }
 
+key_to_multiplier = {
+    'NODE_NETWORK': 2**0,
+    'NODE_GETUTXO': 2**1,
+    'NODE_BLOOM': 2**2,
+    'NODE_WITNESS': 2**3,
+    'NODE_NETWORK_LIMITED': 2**10,
+}
+    
+    
 def ip_to_bytes(ip):
     if ":" in ip:
         return socket.inet_pton(socket.AF_INET6, ip)
@@ -27,13 +36,18 @@ def serialize_address(address, has_timestamp):
     return result
 
 def int_to_little_endian(integer, length):
-    raise NotImplementedError()
+    return integer.to_bytes(length, 'little')
 
 def int_to_big_endian(integer, length):
-    raise NotImplementedError()
+    return integer.to_bytes(length, 'big')
     
 def services_dict_to_int(services_dict):
-    raise NotImplementedError()
+    total = 0
+    for key, value in services_dict.items():
+        if key in key_to_multiplier.keys() and value:
+            total += key_to_multiplier[key]
+            print(str(total))
+    return total
 
 def bool_to_bytes(bool):
     raise NotImplementedError()
@@ -61,24 +75,24 @@ def serialize_version_payload(
     # message starts empty, we add to it for every field
     msg = b''
     # version
-    msg += ZERO * 4
+    msg += int_to_little_endian(version, 4)
     # services
-    msg += ZERO * 8
+    msg += int_to_little_endian(services, 8)
     # timestamp
-    msg += ZERO * 8
+    msg += int_to_little_endian(timestamp, 8)
     # receiver address
     msg += ZERO * 26
     # sender address
     msg += ZERO * 26
     # nonce
-    msg += ZERO * 8
+    msg += int_to_little_endian(nonce, 8)
     # user agent
     msg += ZERO * 1 # zero byte signifies an empty varstr
     # start height
-    msg += ZERO * 4
+    msg += int_to_little_endian(start_height, 4)
     # relay
     msg += ZERO * 1
-    return msg 
+    return msg
 
 def serialize_message(command, payload):
     result = b'magic bytes'
