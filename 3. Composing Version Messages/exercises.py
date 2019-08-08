@@ -11,6 +11,15 @@ dummy_address = {
     "port": 8333
 }
 
+key_to_multiplier = {
+    'NODE_NETWORK': 2**0,
+    'NODE_GETUTXO': 2**1,
+    'NODE_BLOOM': 2**2,
+    'NODE_WITNESS': 2**3,
+    'NODE_NETWORK_LIMITED': 2**10,
+}
+    
+    
 def ip_to_bytes(ip):
     if ":" in ip:
         return socket.inet_pton(socket.AF_INET6, ip)
@@ -27,29 +36,40 @@ def serialize_address(address, has_timestamp):
     return result
 
 def int_to_little_endian(integer, length):
-    raise NotImplementedError()
+    return integer.to_bytes(length, 'little')
 
 def int_to_big_endian(integer, length):
-    raise NotImplementedError()
+    return integer.to_bytes(length, 'big')
     
 def services_dict_to_int(services_dict):
-    raise NotImplementedError()
+    total = 0
+    for key, value in services_dict.items():
+        if key in key_to_multiplier.keys() and value:
+            total += key_to_multiplier[key]
+    return total
 
 def bool_to_bytes(bool):
-    raise NotImplementedError()
+    return bytes([int(bool)])
     
 def serialize_varint(i):
-    raise NotImplementedError()
+    if i < 253:
+        return int_to_little_endian(i, 1)
+    if i < 256**2:
+        return b'\xfd' + int_to_little_endian(i, 2)
+    if i < 256**4:
+        return b'\xfe' + int_to_little_endian(i, 4)
+    if i < 256**8:
+        return b'\xff' + int_to_little_endian(i, 8)
     
 def serialize_varstr(bytes):
-    raise NotImplementedError()
+    return serialize_varint(len(bytes)) + bytes
     
 # Try implementing yourself here:
 # def compute_checksum(bytes):
 #     raise NotImplementedError()
     
 def serialize_version_payload(
-        version=70015, services=0, timestamp=None,
+        version=70015, services_dict={}, timestamp=None,
         receiver_address=dummy_address,
         sender_address=dummy_address,
         nonce=None, user_agent=b'/buidl-army/',
@@ -61,31 +81,31 @@ def serialize_version_payload(
     # message starts empty, we add to it for every field
     msg = b''
     # version
-    msg += ZERO * 4
+    msg += int_to_little_endian(version, 4)
     # services
-    msg += ZERO * 8
+    msg += int_to_little_endian(services_dict_to_int(services_dict), 8)
     # timestamp
-    msg += ZERO * 8
+    msg += int_to_little_endian(timestamp, 8)
     # receiver address
-    msg += ZERO * 26
+    msg += serialize_address(receiver_address, has_timestamp=False)
     # sender address
-    msg += ZERO * 26
+    msg += serialize_address(sender_address, has_timestamp=False)
     # nonce
-    msg += ZERO * 8
+    msg += int_to_little_endian(nonce, 8)
     # user agent
-    msg += ZERO * 1 # zero byte signifies an empty varstr
+    msg += serialize_varstr(user_agent) # zero byte signifies an empty varstr
     # start height
-    msg += ZERO * 4
+    msg += int_to_little_endian(start_height, 4)
     # relay
-    msg += ZERO * 1
-    return msg 
+    msg += bool_to_bytes(relay) 
+    return msg
 
 def serialize_message(command, payload):
-    result = b'magic bytes'
-    result += b'command bytes'
-    result += b'payload length bytes'
-    result += b'checksum bytes'
-    result += b'payload bytes'
+    result = b'\xf9\xbe\xb4\xd9'
+    result += command + b'\x00' * (12 - len(command))
+    result += int_to_little_endian(len(payload), 4)
+    result += compute_checksum(payload)
+    result += payload
     return result
 
 def handshake(address):
